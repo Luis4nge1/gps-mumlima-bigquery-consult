@@ -11,7 +11,7 @@ const router = express.Router();
 router.get('/:id', validateId, validateTimeRange, validateLimit, validateSampling, async (req, res) => {
   try {
     const { id } = req.params;
-    const { startTime, endTime, limit = 1000, sampling } = req.query;
+    const { startTime, endTime, limit = 20000, sampling } = req.query;
 
     const data = await queryService.getMobileData(id, startTime, endTime, limit, sampling);
 
@@ -106,7 +106,7 @@ function calculateRouteMetadata(data) {
 
   const startTime = new Date(firstPoint.timestamp);
   const endTime = new Date(lastPoint.timestamp);
-  const durationMinutes = Math.round((endTime - startTime) / 1000 / 60);
+  const durationMinutes = Math.round((endTime - startTime) / 20 / 60);
 
   return {
     totalPoints: data.length,

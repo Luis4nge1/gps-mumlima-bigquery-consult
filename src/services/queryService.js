@@ -13,7 +13,7 @@ class QueryService {
    * @param {number} limit - Límite de resultados (opcional)
    * @returns {Promise<Array>} Array de registros GPS
    */
-  async getGpsData(id, startTime, endTime, limit = 1000, sampling = null) {
+  async getGpsData(id, startTime, endTime, limit = 20000, sampling = null) {
     let query;
     let params = { id, startTime, endTime, limit };
 
@@ -35,7 +35,7 @@ class QueryService {
         SELECT deviceId, lat, lng, timestamp
         FROM numbered_points
         WHERE MOD(row_num - 1, @sampling) = 0
-        ORDER BY timestamp DESC
+        ORDER BY timestamp ASC
         LIMIT @limit
       `;
       params.sampling = sampling;
@@ -51,7 +51,7 @@ class QueryService {
         WHERE deviceId = @id
           AND timestamp >= @startTime
           AND timestamp <= @endTime
-        ORDER BY timestamp DESC
+        ORDER BY timestamp ASC
         LIMIT @limit
       `;
     }
@@ -145,7 +145,7 @@ class QueryService {
    * @param {number} limit - Límite de resultados (opcional)
    * @returns {Promise<Array>} Array de registros Mobile
    */
-  async getMobileData(id, startTime, endTime, limit = 1000, sampling = null) {
+  async getMobileData(id, startTime, endTime, limit = 20000, sampling = null) {
     let query;
     let params = { id, startTime, endTime, limit };
 
@@ -166,7 +166,7 @@ class QueryService {
         SELECT userId, lat, lng, timestamp
         FROM numbered_points
         WHERE MOD(row_num - 1, @sampling) = 0
-        ORDER BY timestamp DESC
+        ORDER BY timestamp ASC
         LIMIT @limit
       `;
       params.sampling = sampling;
@@ -181,7 +181,7 @@ class QueryService {
         WHERE userId = @id
           AND timestamp >= @startTime
           AND timestamp <= @endTime
-        ORDER BY timestamp DESC
+        ORDER BY timestamp ASC
         LIMIT @limit
       `;
     }
@@ -279,7 +279,7 @@ class QueryService {
         timestamp
       FROM \`${config.projectId}.${config.datasetId}.${config.gpsTableId}\`
       WHERE deviceId = @id
-      ORDER BY timestamp DESC
+      ORDER BY timestamp ASC
       LIMIT 1
     `;
 
@@ -319,7 +319,7 @@ class QueryService {
         timestamp
       FROM \`${config.projectId}.${config.datasetId}.${config.mobileTableId}\`
       WHERE userId = @id
-      ORDER BY timestamp DESC
+      ORDER BY timestamp ASC
       LIMIT 1
     `;
 

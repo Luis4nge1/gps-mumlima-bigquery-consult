@@ -62,6 +62,8 @@ app.get('/api/v5', (req, res) => {
       },
       mobile: {
         byTimeRange: '/api/v5/mobile/:id?startTime=YYYY-MM-DDTHH:mm:ss.sssZ&endTime=YYYY-MM-DDTHH:mm:ss.sssZ&limit=1000',
+        byTimeRangePeru: '/api/v5/mobile/:id/peru-time?peruStartTime=YYYY-MM-DD HH:mm:ss&peruEndTime=YYYY-MM-DD HH:mm:ss&limit=1000',
+        byDatePeru: '/api/v5/mobile/:id/peru-day/YYYY-MM-DD?limit=50000',
         latest: '/api/v5/mobile/:id/latest'
       }
     }

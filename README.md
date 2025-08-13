@@ -34,7 +34,7 @@ API REST profesional para consultar datos de ubicación GPS y Mobile almacenados
 npm install
 
 # Verificar configuración
-node verify-config.js
+node test/verify-config.js
 ```
 
 ### 2. Configuración
@@ -69,10 +69,22 @@ GET /api/v5/health
 ```json
 {
   "status": "healthy",
-  "timestamp": "2025-08-04T16:22:00.000Z",
+  "timestamp": "2025-08-12T16:22:00.000Z",
   "services": { "bigquery": "connected" }
 }
 ```
+
+### 📋 **Resumen de Endpoints Disponibles**
+
+| Endpoint | Método | Descripción | Límite por defecto |
+|----------|--------|-------------|-------------------|
+| `/api/v5/health` | GET | Health check | - |
+| `/api/v5/gps/:id` | GET | Datos GPS por rango de tiempo | 20,000 |
+| `/api/v5/gps/:id/route/:date` | GET | Recorrido GPS completo por día | 50,000 |
+| `/api/v5/gps/:id/latest` | GET | Último registro GPS | 1 |
+| `/api/v5/mobile/:id` | GET | Datos Mobile por rango de tiempo | 20,000 |
+| `/api/v5/mobile/:id/route/:date` | GET | Recorrido Mobile completo por día | 50,000 |
+| `/api/v5/mobile/:id/latest` | GET | Último registro Mobile | 1 |
 
 ### 📍 GPS Data
 
@@ -100,29 +112,38 @@ GET /api/v5/gps/:deviceId?startTime=FECHA&endTime=FECHA&limit=1000&sampling=N
 - `sampling` (query, opcional): Muestreo cada N registros (1-100)
 
 **Formatos de fecha aceptados:**
+
+⚠️ **IMPORTANTE**: Los formatos ISO sin timezone se interpretan como **hora local del servidor**, NO como UTC.
+
 ```bash
-# UTC (Recomendado)
+# ✅ UTC con milisegundos (RECOMENDADO)
 startTime=2025-07-31T22:00:00.000Z
 
-# Con timezone de Lima (UTC-5)
+# ✅ Con timezone específico (equivale al UTC de arriba)
 startTime=2025-07-31T17:00:00-05:00
 
-# ISO sin timezone (se interpreta como UTC)
-startTime=2025-07-31T22:00:00
+# ⚠️ ISO sin timezone (se interpreta como hora LOCAL del servidor)
+startTime=2025-07-31T22:00:00  # Se convierte a 2025-08-01T03:00:00.000Z
 
-# Con espacio
-startTime=2025-07-31 22:00:00
+# ⚠️ Con espacio (se interpreta como hora LOCAL del servidor)
+startTime=2025-07-31 22:00:00  # Se convierte a 2025-08-01T03:00:00.000Z
 ```
+
+**🎯 RECOMENDACIÓN FUERTE**: Usar SIEMPRE formato UTC con 'Z' para evitar confusiones de timezone.
 
 **Ejemplos:**
 ```bash
-# Consulta normal
+# Consulta básica (SIEMPRE usar limit)
 curl -H "x-api-key: tu-api-key" \
   "http://localhost:3005/api/v5/gps/device-001?startTime=2025-07-31T22:00:00.000Z&endTime=2025-08-01T00:00:00.000Z&limit=100"
 
-# Con muestreo optimizado (cada 5 registros)
+# Consulta optimizada con muestreo (cada 5 registros)
 curl -H "x-api-key: tu-api-key" \
   "http://localhost:3005/api/v5/gps/device-001?startTime=2025-07-31T22:00:00.000Z&endTime=2025-08-01T00:00:00.000Z&limit=1000&sampling=5"
+
+# Para datasets grandes: usar sampling + limit alto
+curl -H "x-api-key: tu-api-key" \
+  "http://localhost:3005/api/v5/gps/device-001?startTime=2025-07-31T00:00:00.000Z&endTime=2025-07-31T23:59:59.999Z&limit=50000&sampling=10"
 ```
 
 #### 🛣️ Obtener recorrido completo GPS por día
@@ -140,11 +161,11 @@ GET /api/v5/gps/:deviceId/route/:date?limit=50000&sampling=N
 ```bash
 # Recorrido completo del día
 curl -H "x-api-key: tu-api-key" \
-  http://localhost:3005/api/v5/gps/{:id}/route/2025-07-31
+  http://localhost:3005/api/v5/gps/{:deviceId}/route/2025-07-31
 
 # Recorrido optimizado (cada 3 registros)
 curl -H "x-api-key: tu-api-key" \
-  "http://localhost:3005/api/v5/gps/{:id}/route/2025-07-31?sampling=3"
+  "http://localhost:3005/api/v5/gps/{:deviceId}/route/2025-07-31?sampling=3"
 ```
 
 **Respuesta con metadatos automáticos:**
@@ -232,7 +253,7 @@ GET /api/v5/mobile/:userId/latest
 **Ejemplo:**
 ```bash
 curl -H "x-api-key: tu-api-key" \
-  http://localhost:3005/api/v5/mobile/{:id}/latest
+  http://localhost:3005/api/v5/mobile/{:userId}/latest
 ```
 
 #### Obtener datos Mobile por rango de tiempo
@@ -287,7 +308,7 @@ fetch('http://localhost:3005/api/v5/gps/device-001/latest', {
 $apiKey = -join ((1..128) | ForEach {Get-Random -input ([char[]]([char]'a'..[char]'z') + [char[]]([char]'A'..[char]'Z') + [char[]]([char]'0'..[char]'9'))})
 
 # Linux/Mac
-openssl rand -hex 32
+openssl rand -hex 128
 ```
 
 ### Respuestas de Autenticación
@@ -307,11 +328,27 @@ openssl rand -hex 32
 
 ## ✅ Validaciones y Límites
 
+### ⚠️ **IMPORTANTE: Uso del parámetro `limit`**
+
+**El parámetro `limit` es ALTAMENTE RECOMENDADO** para todas las consultas:
+
+- **Consultas sin `limit`**: Usan límites por defecto (20,000 para consultas normales, 50,000 para rutas)
+- **Riesgo sin límite**: Consultas pueden devolver millones de registros causando timeouts y alto consumo
+- **Optimización de costos**: BigQuery cobra por datos procesados, `limit` reduce costos significativamente
+- **Mejor rendimiento**: Respuestas más rápidas y menor uso de memoria
+
+**Recomendaciones de `limit`:**
+- **Consultas exploratorias**: `limit=100-1000`
+- **Visualización en mapas**: `limit=5000-10000` 
+- **Análisis completo**: `limit=20000-50000`
+- **Con `sampling`**: Permite límites más altos manteniendo rendimiento
+
 ### Validaciones de Parámetros
 - **Device/User ID**: Solo caracteres alfanuméricos, puntos, guiones y guiones bajos (`/^[a-zA-Z0-9._-]+$/`)
 - **Fechas**: Formato ISO válido (múltiples formatos aceptados)
 - **Rango de tiempo**: Máximo 30 días entre `startTime` y `endTime`
 - **Límite**: Entre 1 y 50,000 registros por consulta
+- **Sampling**: Entre 1 y 100 (muestrea cada N registros)
 
 ### Límites de Rate Limiting
 - **100 requests por 15 minutos** por IP
@@ -360,7 +397,7 @@ async function apiRequest(endpoint) {
 }
 
 // Obtener último registro GPS
-const latestGPS = await apiRequest('/api/v5/gps/device-001/latest');
+const latestGPS = await apiRequest('/api/v5/gps/{:id}/latest');
 console.log('Última ubicación:', latestGPS.data);
 
 // Obtener datos de las últimas 24 horas
@@ -368,13 +405,13 @@ const endTime = new Date().toISOString();
 const startTime = new Date(Date.now() - 24*60*60*1000).toISOString();
 
 const gpsData = await apiRequest(
-  `/api/v5/gps/device-001?startTime=${startTime}&endTime=${endTime}&limit=100`
+  `/api/v5/gps/{:id}?startTime=${startTime}&endTime=${endTime}&limit=100`
 );
 console.log(`${gpsData.count} registros encontrados`);
 
 // Obtener datos Mobile
 const mobileData = await apiRequest(
-  '/api/v5/mobile/BIIm73haRJWBOBzVZ7jRVJuWQp13/latest'
+  '/api/v5/mobile/{:id}/latest'
 );
 console.log('Usuario móvil:', mobileData.data);
 ```
@@ -386,19 +423,19 @@ curl -s http://localhost:3005/api/v5/health | jq '.'
 
 # Último GPS con formato bonito
 curl -s -H "x-api-key: tu-api-key" \
-  http://localhost:3005/api/v5/gps/device-001/latest | jq '.data'
+  http://localhost:3005/api/v5/gps/:id/latest | jq '.data'
 
 # Datos GPS de hoy con timezone de Lima
 TODAY_START="$(date -d 'today 00:00:00' -u +'%Y-%m-%dT%H:%M:%S.000Z')"
 TODAY_END="$(date -d 'today 23:59:59' -u +'%Y-%m-%dT%H:%M:%S.999Z')"
 
 curl -s -H "x-api-key: tu-api-key" \
-  "http://localhost:3005/api/v5/gps/device-001?startTime=${TODAY_START}&endTime=${TODAY_END}&limit=50" \
+  "http://localhost:3005/api/v5/gps/:id?startTime=${TODAY_START}&endTime=${TODAY_END}&limit=50" \
   | jq '.count'
 
 # Datos Mobile con manejo de errores
 curl -s -H "x-api-key: tu-api-key" \
-  "http://localhost:3005/api/v5/mobile/BIIm73haRJWBOBzVZ7jRVJuWQp13/latest" \
+  "http://localhost:3005/api/v5/mobile/:id/latest" \
   | jq 'if .success then .data else .error end'
 ```
 
@@ -474,7 +511,7 @@ PORT=4000
 HOST=0.0.0.0
 NODE_ENV=production
 API_KEY=api-key-segura-de-128-caracteres-minimo
-LOG_LEVEL=warn
+LOG_LEVEL=warn | error
 # ... resto igual
 ```
 
@@ -511,7 +548,7 @@ gps-query-api/
 #### Tabla GPS (`gps-data`)
 ```sql
 CREATE TABLE id-data.gps-data (
-  deviceId STRING,      -- ID del dispositivo (ej: "device-001")
+  deviceId STRING,      -- ID del dispositivo (ej: ":id")
   lat FLOAT,           -- Latitud
   lng FLOAT,           -- Longitud  
   timestamp TIMESTAMP, -- Fecha/hora en UTC
@@ -556,19 +593,33 @@ startTime=2025-07-31T22:00:00
 startTime=2025-07-31 22:00:00
 ```
 
-### Importante sobre Timezones
-- **BigQuery almacena TODO en UTC**
-- **La API devuelve TODO en UTC** 
-- **Puedes enviar fechas en cualquier timezone**
-- **La conversión es automática**
+### ⚠️ IMPORTANTE sobre Timezones
 
-### Ejemplo Práctico
+**CUIDADO**: Los formatos sin timezone pueden causar confusión:
+
+- **BigQuery almacena TODO en UTC** ✅
+- **La API devuelve TODO en UTC** ✅  
+- **Formatos con timezone explícito**: Se convierten correctamente ✅
+- **Formatos SIN timezone**: Se interpretan como hora LOCAL del servidor ⚠️
+
+### Ejemplo Práctico de Equivalencias
 ```bash
-# Estas consultas son IDÉNTICAS:
-GET /api/v5/gps/device-001?startTime=2025-07-31T22:00:00Z         # UTC
-GET /api/v5/gps/device-001?startTime=2025-07-31T17:00:00-05:00    # Lima
+# ✅ Estas consultas SÍ son IDÉNTICAS (mismo momento UTC):
+GET /api/v5/gps/:id?startTime=2025-07-31T22:00:00.000Z     # UTC explícito
+GET /api/v5/gps/:id?startTime=2025-07-31T17:00:00-05:00    # Lima explícito
 
-# Ambas buscan la misma hora: 17:00 Lima = 22:00 UTC
+# ❌ Esta consulta es DIFERENTE (5 horas después):
+GET /api/v5/gps/:id?startTime=2025-07-31T22:00:00          # Sin timezone = local
+```
+
+### 🎯 Mejor Práctica para Frontend
+```javascript
+// ✅ CORRECTO: Convertir fecha local del usuario a UTC
+const userLocalDate = new Date('2025-07-31 17:00:00'); // Hora que ve el usuario
+const utcString = userLocalDate.toISOString(); // "2025-07-31T22:00:00.000Z"
+
+// ❌ INCORRECTO: Enviar fecha sin timezone
+const badFormat = '2025-07-31T17:00:00'; // Ambiguo, depende del servidor
 ```
 
 ## 📊 Datos de Prueba Verificados
@@ -700,8 +751,7 @@ Para problemas o preguntas:
 
 1. **Verificar configuración**: `node verify-config.js`
 2. **Revisar logs** del servidor
-3. **Consultar documentación** en `/DEPLOYMENT.md` y `/TIMESTAMPS.md`
-4. **Probar endpoints** con los datos de ejemplo proporcionados
+3. **Probar endpoints** con los datos de ejemplo proporcionados
 
 ---
 

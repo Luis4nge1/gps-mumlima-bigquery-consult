@@ -11,7 +11,7 @@ const router = express.Router();
 router.get('/:id', validateId, validateTimeRange, validateLimit, validateSampling, async (req, res) => {
   try {
     const { id } = req.params;
-    const { startTime, endTime, limit = 1000, sampling } = req.query;
+    const { startTime, endTime, limit = 20000, sampling } = req.query;
 
     const data = await queryService.getGpsData(id, startTime, endTime, limit, sampling);
 
